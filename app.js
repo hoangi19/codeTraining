@@ -1,10 +1,11 @@
 const { MongoClient } = require("mongodb");
 const fetch = require("node-fetch");
 const { exit } = require("process");
+const express = require("express");
+const socket = require("socket.io");
 
 const url = "mongodb://admin:admin@127.0.0.1:27017";
 
-var countDebug = 2;
 
 async function main() {
     try {
@@ -30,6 +31,7 @@ async function fetchAndStoreData() {
             .then(json => {
                 // console.log(json);
                 let data = {
+                    "buy" : json["buy"],
                     "open": json["open"],
                     "high": json["high"],
                     "low": json["low"],
@@ -44,7 +46,6 @@ async function fetchAndStoreData() {
                     }
                 });
             });
-        if (--countDebug == 0) exit();
     }
     catch (e) {
 
