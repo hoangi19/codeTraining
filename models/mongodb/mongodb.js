@@ -26,9 +26,15 @@ function getBITXETHprice5m(callbackFunc){
     db.collection('bitx_eth_candle_5m').find({}).toArray(callbackFunc)
 }
 
+function getCandlePriceInRange(collection, timeBegin, timeEnd, callbackFunc){
+    const db = client.db('test')
+    db.collection(collection).find({'time': {$gt: timeBegin, $lt: timeEnd}}).toArray(callbackFunc)
+}
+
 module.exports = {
     connectDB,
     disconnectDB,
     updateBITXETHprice5m,
-    getBITXETHprice5m
+    getBITXETHprice5m,
+    getCandlePriceInRange
 }
