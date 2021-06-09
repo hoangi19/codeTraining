@@ -1,99 +1,104 @@
-const { MongoClient } = require("mongodb");
-const fetch = require("node-fetch");
-const { exit } = require("process");
-const express = require("express");
-const socket = require("socket.io");
-
-const url = "mongodb://admin:admin@127.0.0.1:27017";
-
-const redis = require('redis');
-
-const redisClient = redis.createClient({
-    host: 'localhost',
-    port: 6379
-});
+const fetchData = require('./fetchData/fetchHotbit')
+const redis = require('./models/redis/redis')
+const mongodb = require('./models/mongodb/mongodb')
 
 async function main() {
     try {
-        setInterval(fetchAndStoreData, 20000);
+        await mongodb.connectDB()
+        setInterval(fetchAndStoreData, 20000)
     }
     catch (e) {
-        console.error(e);
+        console.error(e)
+        await mongodb.disconnectDB()
     }
 
 }
+
 
 async function fetchAndStoreData() {
-    const client = new MongoClient(url);
     try {
+        //fetch data from hotbit 
+        const js = await fetchData.fetchData()
+        const price = js['buy']
 
-        await client.connect();
-        var db = client.db('test');
-        // await listDatabases(client);
-        // let res = await fetch('https://www.hotbit.io/public/markets');
-        await fetch('https://api.hotbit.io/api/v1/allticker', { headers: { "User-Agent": "PostmanRuntime/7.28.0" } })
-            .then(res => res.json())
-            .then(json => findBITXETH(json))
-            .then(json => {
-                // console.log(json);
-                let data = {
-                    "buy": json["buy"],
-                    "open": json["open"],
-                    "high": json["high"],
-                    "low": json["low"],
-                    "close": json["close"]
-                };
-                json = JSON.stringify(data);
-                redisClient.lpush("BITX_ETH_price", json, function (err, reply) {
+        // get time of last update
+        redis.getLastUpdate(function (err, lastUpdate) {
+            if (err) {
+                console.log(err)
+            }
+            else {
+                const timeNow = new Date().getTime()
+                //get bitx_eth_price_5m in redis 
+                redis.getBITXETHprice5m(function (err, bitx_eth_candle_5m) {
                     if (err) {
-                        console.log(err);
+                        console.log(err)
                     }
-                    let timeNow = new Date().getTime() / 1000;
-                    redisClient.get("lastUpdate", function (err, reply) {
-                        if (err) {
-                            console.log(err);
-                        }
-                        if (reply === null || timeNow - reply > 300000) {
-                            redisClient.set("lastUpdate", timeNow);
-                            db.collection('documents').insertOne(data, function (err, res) {
-                                if (err == null) {
-                                    console.log("yess");
-                                }
-                                else {
-                                    console.log(err);
-                                }
-                            });
-                        }
-                    })
-                    console.log(reply);
-                });
+                    else {
+                        if (bitx_eth_candle_5m === null) { // create new if bitx_eth_candle_5m not exists
+                            let data = {
+                                'open': price,
+                                'high': price,
+                                'low': price,
+                                'close': price
+                            }
 
-            });
+                            redis.setBITXETHprice5m(data, function (err) {
+                                if (err) {
+                                    console.log(err)
+                                }
+                            })
+                        }
+                        else {
+                            // redis luu data dang string -> chuyen sang json
+                            let data = JSON.parse(bitx_eth_candle_5m)
+
+                            // cap nhat bitx_eth_candle_5m
+                            data = {
+                                'open': data['open'],
+                                'high': Math.max(data['high'], price),
+                                'low': Math.min(data['low'], price),
+                                'close': price
+                            }
+                            redis.setBITXETHprice5m(data, function (err) {
+                                if (err) {
+                                    console.log(err)
+                                }
+                            })
+
+                            if (timeNow - lastUpdate >= 300000) { // neu chua update db sau 5p thi update db
+                                redis.setLastUpdate(timeNow, function (err) {
+                                    if (err) {
+                                        console.log(err)
+                                    }
+                                })
+                                //update mongodb
+                                mongodb.updateBITXETHprice5m(data, function (err) {
+                                    if (err) {
+                                        console.log(err)
+                                    }
+                                    else{
+                                        console.log('stored to db')
+                                    }
+                                })
+                            }
+                        }
+                    }
+                })
+            }
+        })
     }
     catch (e) {
-
-    }
-    finally {
-        await client.close();
+        console.log(e)
     }
 }
 
-function findBITXETH(json) {
-    for (let i in json["ticker"]) {
-        if (json["ticker"][i]["symbol"] == "BITX_ETH") {
-            // console.log(json["Content"][i]);
-            return json["ticker"][i];
-        }
-    }
-}
-
-main().catch(console.error);
+main().catch(console.error)
 /**
  * Print the names of all available databases
  * @param {MongoClient} client A MongoClient that is connected to a cluster
  */
 async function listDatabases(client) {
-    databasesList = await client.db().admin().listDatabases();
-    console.log("Databases:");
-    databasesList.databases.forEach(db => console.log(` - ${db.name}`));
-};
+    databasesList = await client.db().admin().listDatabases()
+    console.log('Databases:')
+    databasesList.databases.forEach(db => console.log(` - ${db.name}`))
+}
