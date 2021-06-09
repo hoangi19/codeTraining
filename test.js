@@ -1,4 +1,7 @@
 const fetchData = require('./fetchData/fetchHotbit')
+const mongo = require('./models/mongodb/mongodb')
+const utility = require('./models/utility/utility') 
+
 async function test() {
     const js = await fetchData.fetchData()
     console.log(js)
@@ -60,5 +63,18 @@ redis.getBITXETHprice5m(function(err, reply){
     else {
         let data = JSON.parse(reply)
         console.log(data['open'])
+    }
+})
+
+let timeNow = new Date().getTime()
+
+mongo.getCandlePriceInRange('bitx_eth_candle_5m', timeNow - utility.calcTime('15m'), timeNow, function(err, result){
+    if (err)
+    {
+        console.log(err)
+    }
+    else
+    {
+        console.log(result)
     }
 })
