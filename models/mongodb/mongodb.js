@@ -17,13 +17,13 @@ async function disconnectDB(){
 // update bitx_eth_price_5m
 function updateBITXETHprice5m(data, callbackFunc) {
     const db = client.db('test')
-    db.collection('bitx_eth_price_5m').insertOne(data, callbackFunc)
+    db.collection('bitx_eth_candle_5m').insertOne(data, callbackFunc)
 }
 
 // get bitx_eth_price_5m value
 function getBITXETHprice5m(callbackFunc){
     const db = client.db('test')
-    db.collection('bitx_eth_price_5m').find({}).toArray(callbackFunc)
+    db.collection('bitx_eth_candle_5m').find({}).toArray(callbackFunc)
 }
 
 module.exports = {
